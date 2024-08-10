@@ -64,7 +64,7 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
         HOME_C, HOME_R,  HOME_S,  HOME_T,    KC_G,        KC_M,  HOME_N,  HOME_E,  HOME_I,   HOME_A,
         PNKY_Q,   KC_J,    KC_V,    KC_D,    KC_K,        KC_X,    KC_H, KC_SCLN, KC_COMM, PNKY_DOT,
 
-                          MO(NAV), KC_SPC, KC_TAB,       QK_AREP, QK_REP, MO(NUM)
+                          MO(NAV), KC_SPC, QK_AREP,       QK_AREP, QK_REP, MO(NUM)
     ),
 
     [SYM] = LAYOUT_split_3x5_3( 
@@ -78,19 +78,19 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
     //  NAV layers doubles as mousing layer (i.e. left hand shortcuts)
     
     [NAV] = LAYOUT_split_3x5_3(
-        C(KC_Z),  KC_DEL, C(S(KC_V)), C(KC_SLSH), XXXXXXX,       XXXXXXX, XXXXXXX, SELLINE, XXXXXXX, XXXXXXX,
-        C(KC_C), KC_LALT,    KC_LSFT, KC_LCTL,    XXXXXXX,       KC_PGUP, KC_LEFT,   KC_UP, KC_RGHT, XXXXXXX,
-        KC_LGUI, C(KC_X),    C(KC_V), C(KC_D),    XXXXXXX,       KC_PGDN, KC_HOME, KC_DOWN,  KC_END, XXXXXXX,
+        C(KC_Z),  KC_DEL, C(S(KC_V)), C(KC_SLSH), C(KC_A),       XXXXXXX, XXXXXXX,   KC_UP, XXXXXXX, XXXXXXX,
+        C(KC_C), KC_LALT,    KC_LSFT, KC_LCTL,    SELLINE,       KC_PGUP, KC_LEFT, KC_DOWN, KC_RGHT, XXXXXXX,
+        KC_LGUI, C(KC_X),    C(KC_V), C(KC_D),    XXXXXXX,       KC_PGDN, KC_HOME, XXXXXXX,  KC_END, XXXXXXX,
         
                              _______, _______,    _______,       _______, _______, _______
     ),
 
     [NUM] = LAYOUT_split_3x5_3(
         XXXXXXX,  KC_4,    KC_5,    KC_6,    XXXXXXX,       XXXXXXX, C(KC_MINS), XXXXXXX, C(KC_EQL), XXXXXXX,
-           KC_0,  KC_1,    KC_2,    KC_3,     KC_DOT,       KC_VOLU,    KC_RCTL, KC_RSFT,   KC_LALT, XXXXXXX,
+        XXXXXXX,  KC_1,    KC_2,    KC_3,     KC_DOT,       KC_VOLU,    KC_RCTL, KC_RSFT,   KC_LALT, XXXXXXX,
         XXXXXXX,  KC_7,    KC_8,    KC_9,    XXXXXXX,       KC_VOLD,    XXXXXXX, XXXXXXX,   XXXXXXX, KC_LGUI,
         
-                           _______,  _______, _______,      _______, _______, _______ 
+                             _______,  KC_0, _______,      _______, _______, _______ 
     ),
 };
 
@@ -130,12 +130,14 @@ uint16_t const caps_combo[] PROGMEM = {KC_V, KC_SCLN, COMBO_END}; // Middle fing
 uint16_t const bck_combo[] PROGMEM = {KC_H, KC_SCLN, COMBO_END};    // RHS index + middle
 uint16_t const esc_combo[] PROGMEM = {KC_SCLN, KC_COMM, COMBO_END}; // RHS middle + ring
 uint16_t const ent_combo[] PROGMEM = {KC_V, KC_D, COMBO_END};       // LHS index + middle
+uint16_t const tab_combo[] PROGMEM = {KC_J, KC_V, COMBO_END};       // LHS ring + middle
 
 combo_t key_combos[] = {
     COMBO(caps_combo, CW_TOGG), //
     COMBO(esc_combo, KC_ESC),   //
     COMBO(ent_combo, KC_ENT),   //
     COMBO(bck_combo, KC_BSPC),  //
+    COMBO(tab_combo, KC_TAB),   //
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -174,12 +176,6 @@ uint16_t get_quick_tap_term(uint16_t keycode, keyrecord_t* record) {
 ///////////////////////////////////////////////////////////////////////////////
 
 bool achordion_chord(uint16_t tap_hold_keycode, keyrecord_t* tap_hold_record, uint16_t other_keycode, keyrecord_t* other_record) {
-    // Allow same-hand holds when the other key is on the thumb cluster.
-    uint8_t row = other_record->event.key.row;
-    if (row == 3 || row == 7) {
-        return true;
-    }
-
     return achordion_opposite_hands(tap_hold_record, other_record);
 }
 
@@ -217,7 +213,7 @@ uint16_t achordion_streak_chord_timeout(uint16_t tap_hold_keycode, uint16_t next
     // Otherwise, tap_hold_keycode is a mod-tap key.
     const uint8_t mod = mod_config(QK_MOD_TAP_GET_MODS(tap_hold_keycode));
 
-    if ((mod & MOD_LSFT) != 0) {
+    if ((mod & MOD_LSFT) != 0 || (mod & MOD_RSFT) != 0) {
         return 100; // A short streak timeout for Shift mod-tap keys.
     } else {
         return 220; // A longer timeout otherwise.
@@ -263,14 +259,14 @@ bool remember_last_key_user(uint16_t keycode, keyrecord_t* record, uint8_t* reme
             break;
     }
 
-    // Forget Shift on most letters when Shift or AltGr are the only mods.
+    // Forget Shift on most letters when Shift is the only mod.
     // This is useful for things like Aaron, etc.
     // Some letters are excluded, e.g. for "NN" and "ZZ" in Vim.
     switch (keycode) {
         case KC_A ... KC_H:
         case KC_K ... KC_M:
         case KC_O ... KC_U:
-            if ((*remembered_mods & ~(MOD_MASK_SHIFT | MOD_BIT(KC_RALT))) == 0) {
+            if ((*remembered_mods & ~MOD_MASK_SHIFT) == 0) {
                 *remembered_mods &= ~MOD_MASK_SHIFT;
             }
             break;
@@ -280,31 +276,10 @@ bool remember_last_key_user(uint16_t keycode, keyrecord_t* record, uint8_t* reme
 }
 
 uint16_t get_alt_repeat_key_keycode_user(uint16_t keycode, uint8_t mods) {
-    if ((mods & MOD_MASK_CTRL)) {
-        // Only process the tap part of tap-hold keys.
-        switch (keycode) {
-            case QK_MOD_TAP ... QK_MOD_TAP_MAX:
-                keycode = QK_MOD_TAP_GET_TAP_KEYCODE(keycode);
-                break;
-            case QK_LAYER_TAP ... QK_LAYER_TAP_MAX:
-                keycode = QK_LAYER_TAP_GET_TAP_KEYCODE(keycode);
-                break;
-        }
-
-        switch (keycode) {
-            case KC_C:
-                if (mods & MOD_MASK_SHIFT) {
-                    return C(S(KC_V)); // Ctrl+Shift+C -> Ctrl+Shift+V
-                } else {
-                    return C(KC_V); // Ctrl+C -> Ctrl+V
-                }
-        }
-    } else if ((mods & ~MOD_MASK_SHIFT) == 0) {
+    if ((mods & ~MOD_MASK_SHIFT) == 0) {
         // This is where most of the "magic" for the MAGIC key is implemented.
         switch (keycode) {
             case KC_SPC: // spc -> THE
-            case KC_ENT:
-            case KC_TAB:
                 return M_THE;
 
             // For navigating next/previous search results in Vim:
@@ -336,25 +311,42 @@ uint16_t get_alt_repeat_key_keycode_user(uint16_t keycode, uint8_t mods) {
                 return KC_L; // R -> L
             case KC_P:
                 return KC_T; // P -> T
-
-            case KC_COLN:
-                return KC_W; // : -> W (:wq)
             case HOME_C:
                 return KC_W; // C -> W (vim)
+
+            // Layer related SFBs
+            case KC_COLN:
+                return KC_W; // : -> W (:wq)
             case KC_LABK:
                 return KC_MINS; // < -> - (for Haskell) (sfb)
+
+            // Fix combo SFBs
+            case KC_TAB:
+                return KC_ENT;
+            case KC_ENT:
+                return KC_TAB;
 
             // Fix LSBs
             case KC_M:
                 return KC_E; // M -> E
+            case KC_G:
+                return KC_S; // G -> S
 
             // Fix scissors
             case KC_H:
                 return KC_O; // H -> O
+            case KC_D:
+                return KC_Y; // D -> Y
+
+            // Other
+            case KC_TILD:
+                return KC_SLSH; // ~ -> /
+
+            // Magic keycodes
             case PNKY_DOT:
                 return M_UPDIR; // . -> ./
             case KC_COMM:
-                return M_TDIR; // , -> ,
+                return M_TDIR; // , ->  <bsp>./
             case KC_HASH:
                 return M_INCLUDE; // # -> include
             case KC_EQL:
