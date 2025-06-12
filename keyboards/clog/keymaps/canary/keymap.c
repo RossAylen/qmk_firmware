@@ -17,7 +17,7 @@ enum layers {
 enum custom_keycodes {
     SELLINE = SAFE_RANGE, // Select the current line
     STD_CLN,              // std::
-    USRNAME,              // conor
+    USRNAME,              // Ross
     UP_DIR,               // ../
     // Custom repeat key
     M_UPDIR,   // . -> ../
@@ -60,8 +60,8 @@ enum custom_keycodes {
 // clang-format off
 
 const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
-   
-    [BASE] = LAYOUT_split_3x5_2(  
+
+    [BASE] = LAYOUT_split_3x5_2(
         KC_W,     KC_L,    KC_Y,    KC_P,    KC_B,        KC_Z,    KC_F,    KC_O,    KC_U,  KC_QUOT,
         HOME_C, HOME_R,  HOME_S,  HOME_T,    KC_G,        KC_M,  HOME_N,  HOME_E,  HOME_I,   HOME_A,
         PNKY_Q,   KC_J,    KC_V,    KC_D,    KC_K,        KC_X,    KC_H, KC_SCLN, KC_COMM, PNKY_DOT,
@@ -69,30 +69,30 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
                                  MO(NAV), THMB_LI,        THMB_RI, MO(NUM)
     ),
 
-    [SYM] = LAYOUT_split_3x5_2( 
+    [SYM] = LAYOUT_split_3x5_2(
         XXXXXXX, KC_LABK, KC_RABK, KC_BSLS, USRNAME,      KC_PIPE, STD_CLN, KC_LBRC, KC_RBRC, XXXXXXX,
         KC_EXLM, KC_MINS, KC_PLUS,  KC_EQL, KC_HASH,      KC_AMPR, KC_COLN, KC_LPRN, KC_RPRN, KC_PERC,
         XXXXXXX, KC_SLSH, KC_ASTR, KC_CIRC, KC_GRV,       KC_TILD,  KC_DLR, KC_LCBR, KC_RCBR, XXXXXXX,
-        
+
                                    _______, KC_UNDS,      _______, _______
-    ), 
+    ),
 
     //  NAV layers doubles as mousing layer (i.e. left hand shortcuts)
-    
+
     [NAV] = LAYOUT_split_3x5_2(
         C(KC_Z),  KC_DEL, C(S(KC_V)), XXXXXXX,    XXXXXXX,       XXXXXXX, XXXXXXX, SELLINE, XXXXXXX, XXXXXXX,
         C(KC_C), KC_LALT,    KC_LSFT, KC_LCTL, C(KC_SLSH),       KC_PGUP, KC_LEFT,   KC_UP, KC_RGHT, XXXXXXX,
         KC_LGUI, C(KC_X),    C(KC_V), C(KC_D),    XXXXXXX,       KC_PGDN, KC_HOME, KC_DOWN,  KC_END, XXXXXXX,
-        
-                                        _______,  _______,       _______, _______ 
+
+                                        _______,  _______,       _______, _______
     ),
 
     [NUM] = LAYOUT_split_3x5_2(
         XXXXXXX,  KC_4,    KC_5,    KC_6,    XXXXXXX,       XXXXXXX, C(KC_MINS), XXXXXXX, C(KC_EQL), XXXXXXX,
            KC_0,  KC_1,    KC_2,    KC_3,     KC_DOT,       KC_VOLU,    KC_RCTL, KC_RSFT,   KC_LALT, XXXXXXX,
         XXXXXXX,  KC_7,    KC_8,    KC_9,    XXXXXXX,       KC_VOLD,    XXXXXXX, XXXXXXX,   XXXXXXX, KC_LGUI,
-        
-                                   XXXXXXX,  _______,       _______, _______ 
+
+                                   XXXXXXX,  _______,       _______, _______
     ),
 };
 
@@ -129,10 +129,10 @@ uint8_t NUM_CUSTOM_SHIFT_KEYS = sizeof(custom_shift_keys) / sizeof(custom_shift_
 
 uint16_t const caps_combo[] PROGMEM = {KC_V, KC_SCLN, COMBO_END}; // Middle fingers
 
-uint16_t const bck_combo[] PROGMEM = {KC_H, KC_SCLN, COMBO_END};    // RHS index + middle
-uint16_t const esc_combo[] PROGMEM = {KC_SCLN, KC_COMM, COMBO_END}; // RHS middle + ring
-uint16_t const ent_combo[] PROGMEM = {KC_V, KC_D, COMBO_END};       // LHS index + middle
-uint16_t const tab_combo[] PROGMEM = {KC_J, KC_V, COMBO_END};       // LHS ring + middle
+uint16_t const bck_combo[] PROGMEM = {HOME_N, HOME_E, COMBO_END};    // RHS index + middle
+uint16_t const esc_combo[] PROGMEM = {HOME_E, HOME_I, COMBO_END}; // RHS middle + ring
+uint16_t const ent_combo[] PROGMEM = {HOME_S, HOME_T, COMBO_END};       // LHS index + middle
+uint16_t const tab_combo[] PROGMEM = {HOME_R, HOME_S, COMBO_END};       // LHS ring + middle
 
 combo_t key_combos[] = {
     COMBO(caps_combo, CW_TOGG), //
@@ -330,7 +330,7 @@ bool process_record_user(uint16_t keycode, keyrecord_t* record) {
                 SEND_STRING_DELAY("../", TAP_CODE_DELAY);
                 return false;
             case USRNAME:
-                SEND_STRING_DELAY("conor", TAP_CODE_DELAY);
+                SEND_STRING_DELAY("Ross", TAP_CODE_DELAY);
                 return false;
 
                 // From the repeat key, break and return true.
