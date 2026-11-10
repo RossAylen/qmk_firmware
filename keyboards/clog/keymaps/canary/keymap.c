@@ -419,7 +419,10 @@ enum live_command_ids {
     id_live_bootloader = 0xF2,
     id_live_read_flash = 0xF3, // for finding out what the bootloader allows
     id_live_read_fuses = 0xF4,
+    id_live_get_keymap_c = 0xF5, // keymap.c's keymaps[], which the EEPROM keymap starts from
 };
+
+#    include "keymap_introspection.h"
 
 #    ifdef __AVR__
 #        include <avr/boot.h>
@@ -521,6 +524,21 @@ bool via_command_kb(uint8_t* data, uint8_t length) {
                 d[4] = e->keycode >> 8;
                 d[5] = e->time & 0xFF;
                 d[6] = e->time >> 8;
+            }
+            break;
+        }
+
+        // keymap.c's own keycodes, laid out as id_dynamic_keymap_get_buffer
+        // reads the EEPROM's (big-endian, layer by row by column), so the host
+        // can tell a remap made in the app from a change to keymap.c.
+        case id_live_get_keymap_c: {
+            uint16_t offset = (data[1] << 8) | data[2];
+            uint8_t  size   = data[3] < 28 ? data[3] : 28;
+
+            for (uint8_t i = 0; i < size; i++) {
+                uint16_t n    = (offset + i) / 2;
+                uint16_t code = keycode_at_keymap_location_raw(n / (MATRIX_ROWS * MATRIX_COLS), (n / MATRIX_COLS) % MATRIX_ROWS, n % MATRIX_COLS);
+                data[4 + i]   = (offset + i) & 1 ? code & 0xFF : code >> 8;
             }
             break;
         }
