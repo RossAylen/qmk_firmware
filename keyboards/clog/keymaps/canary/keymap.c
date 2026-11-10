@@ -409,7 +409,8 @@ typedef struct {
 } live_event_t;
 
 static live_event_t live_events[LIVE_EVENT_COUNT];
-static uint8_t      live_head; // sequence number of the next event to be written
+static uint8_t      live_head;  // sequence number of the next event to be written
+static uint8_t      live_count; // events held, up to LIVE_EVENT_COUNT, so a fresh ring never replays empty slots
 
 static void live_record(uint16_t keycode, keyrecord_t* record, uint8_t source) {
     live_event_t* e = &live_events[live_head % LIVE_EVENT_COUNT];
@@ -420,6 +421,9 @@ static void live_record(uint16_t keycode, keyrecord_t* record, uint8_t source) {
     e->keycode = keycode;
     e->time    = record->event.time;
     live_head++;
+    if (live_count < LIVE_EVENT_COUNT) {
+        live_count++;
+    }
 }
 
 // Physical presses and releases, before combos and tap-hold see them.
@@ -461,9 +465,9 @@ bool via_command_kb(uint8_t* data, uint8_t length) {
             uint8_t from      = data[1];
             uint8_t available = live_head - from;
 
-            if (available > LIVE_EVENT_COUNT) {
-                from      = live_head - LIVE_EVENT_COUNT;
-                available = LIVE_EVENT_COUNT;
+            if (available > live_count) {
+                from      = live_head - live_count;
+                available = live_count;
             }
             uint8_t count = available < LIVE_EVENTS_PER_REPLY ? available : LIVE_EVENTS_PER_REPLY;
 
