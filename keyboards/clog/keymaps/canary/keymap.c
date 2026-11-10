@@ -419,8 +419,40 @@ enum live_command_ids {
     id_live_bootloader = 0xF2,
     id_live_read_flash = 0xF3, // for finding out what the bootloader allows
     id_live_read_fuses = 0xF4,
-    id_live_get_keymap_c = 0xF5, // keymap.c's keymaps[], which the EEPROM keymap starts from
+    id_live_get_keymap_c = 0xF5, // keymap.c's keymaps[], which a blank EEPROM keymap starts from
 };
+
+/**
+ * The keymap is the one in EEPROM, edited from the web app, and outlives a
+ * flash; keymaps[] above only fills a blank EEPROM. VIA resets the EEPROM to
+ * keymaps[] whenever the build date changes, so via_init_kb() marks it valid
+ * for this build first, if what's there was stored in the same place and
+ * shape. A QMK update that moves VIA's EEPROM, a new layer count or renumbered
+ * keycodes changes the shape, and VIA resets as it would have. VIA's own reset
+ * command, or a reset cut short, leaves its magic at 0xFF, and that still
+ * resets too.
+ */
+#    include "eeprom.h"
+#    include "nvm_via.h"
+#    include "nvm_eeprom_eeconfig_internal.h"
+#    include "nvm_eeprom_via_internal.h" // VIA_EEPROM_CONFIG_END, where the dynamic keymap starts
+
+#    define KEYMAP_SHAPE_ADDR ((uint32_t*)(DYNAMIC_KEYMAP_EEPROM_MAX_ADDR + 1)) // the 4 bytes config.h keeps from VIA's macros
+#    define KEYMAP_SHAPE ((uint32_t)(VIA_EEPROM_CONFIG_END) << 20 | (uint32_t)DYNAMIC_KEYMAP_LAYER_COUNT << 16 | (MATRIX_ROWS * MATRIX_COLS) << 8 | (QMK_KEYCODES_VERSION_BCD & 0xFF))
+
+void via_init_kb(void) {
+    uint8_t magic0, magic1, magic2;
+
+    nvm_via_read_magic(&magic0, &magic1, &magic2);
+    if (eeprom_read_dword(KEYMAP_SHAPE_ADDR) == KEYMAP_SHAPE && magic0 != 0xFF) {
+        via_eeprom_set_valid(true);
+    }
+}
+
+// After VIA and eeconfig have reset whatever they were going to.
+void keyboard_post_init_user(void) {
+    eeprom_update_dword(KEYMAP_SHAPE_ADDR, KEYMAP_SHAPE);
+}
 
 #    include "keymap_introspection.h"
 

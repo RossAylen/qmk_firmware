@@ -33,3 +33,7 @@
 // permission across replugs and flashes; it forgets devices without one. The
 // same on both halves, so either one on the cable is the same keyboard.
 #define SERIAL_NUMBER "clog"
+
+// VIA's macro buffer stops 4 bytes short of the end of EEPROM, where keymap.c
+// records the shape of the keymap stored, so a flash can keep it.
+#define DYNAMIC_KEYMAP_EEPROM_MAX_ADDR (TOTAL_EEPROM_BYTE_COUNT - 5)
