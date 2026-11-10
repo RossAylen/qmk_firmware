@@ -252,10 +252,12 @@ bool process_achordion(uint16_t keycode, keyrecord_t* record) {
 }
 
 void achordion_task(void) {
+#    ifndef ACHORDION_NO_TIMEOUT // Local change: settle only on the next key.
     if (achordion_state == STATE_UNSETTLED && timer_expired(timer_read(), hold_timer)) {
         dprintln("Achordion: Timeout. Plumbing hold press.");
         settle_as_hold(); // Timeout expired, settle the key as held.
     }
+#    endif
 
 #    ifdef ACHORDION_STREAK
 #        define MAX_STREAK_TIMEOUT 800

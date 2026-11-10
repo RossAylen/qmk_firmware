@@ -119,7 +119,8 @@ bool achordion_chord(uint16_t tap_hold_keycode, keyrecord_t* tap_hold_record, ui
  * The callback determines Achordion's timeout duration for `tap_hold_keycode`
  * in units of milliseconds. The timeout be in the range 0 to 32767 ms (upper
  * bound is due to 16-bit timer limitations). Use a timeout of 0 to bypass
- * Achordion.
+ * Achordion. With ACHORDION_NO_TIMEOUT defined (a local change) there is no
+ * timeout, and all that matters is whether this returns 0.
  *
  * @param tap_hold_keycode Keycode of the tap-hold key.
  * @return Timeout duration in milliseconds in the range 0 to 32767.

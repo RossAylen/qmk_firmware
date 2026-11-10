@@ -31,6 +31,7 @@ enum custom_keycodes {
     M_INCLUDE, // # -> #include
     M_DOCSTR,  // " -> """<cursor>"""
     M_MKGRVS,  // ` -> ```<cursor>```
+    ALT_TAB,   // Alt+Tab, Alt held until NAV is released
 };
 
 /**
@@ -87,7 +88,7 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
 
     [NAV] = LAYOUT_split_3x5_2(
         C(KC_Z),  KC_DEL, C(S(KC_V)), XXXXXXX,    XXXXXXX,       XXXXXXX, XXXXXXX, SELLINE, XXXXXXX, XXXXXXX,
-        C(KC_C), KC_LALT,    KC_LSFT, KC_LCTL, C(KC_SLSH),       KC_PGUP, KC_LEFT,   KC_UP, KC_RGHT, XXXXXXX,
+        C(KC_C), ALT_TAB,    KC_LSFT, KC_LCTL, C(KC_SLSH),       KC_PGUP, KC_LEFT,   KC_UP, KC_RGHT, XXXXXXX,
         KC_LGUI, C(KC_X),    C(KC_V), C(KC_D),    XXXXXXX,       KC_PGDN, KC_HOME, KC_DOWN,  KC_END, XXXXXXX,
 
                                         _______,  _______,       _______, _______
@@ -136,9 +137,9 @@ uint8_t NUM_CUSTOM_SHIFT_KEYS = sizeof(custom_shift_keys) / sizeof(custom_shift_
 uint16_t const caps_combo[] PROGMEM = {KC_V, KC_SCLN, COMBO_END}; // Middle fingers
 
 uint16_t const bck_combo[] PROGMEM = {HOME_N, HOME_E, COMBO_END};    // RHS index + middle
-uint16_t const esc_combo[] PROGMEM = {HOME_E, HOME_I, COMBO_END}; // RHS middle + ring
-uint16_t const ent_combo[] PROGMEM = {HOME_S, HOME_T, COMBO_END};       // LHS index + middle
-uint16_t const tab_combo[] PROGMEM = {HOME_R, HOME_S, COMBO_END};       // LHS ring + middle
+uint16_t const ent_combo[] PROGMEM = {HOME_E, HOME_I, COMBO_END}; // RHS middle + ring
+uint16_t const esc_combo[] PROGMEM = {HOME_R, HOME_S, COMBO_END};       // LHS ring + middle
+uint16_t const tab_combo[] PROGMEM = {HOME_S, HOME_T, COMBO_END};       // LHS index + middle
 
 combo_t key_combos[] = {
     COMBO(caps_combo, CW_TOGG), //
@@ -206,13 +207,14 @@ bool achordion_eager_mod(uint8_t mod) {
 }
 
 uint16_t achordion_timeout(uint16_t tap_hold_keycode) {
-    // Disable achordion for the thumb keys.
+    // Disable achordion for the thumb keys. ACHORDION_NO_TIMEOUT means any
+    // other value only switches it on.
     switch (tap_hold_keycode) {
         case THMB_LI:
         case THMB_RI:
             return 0;
         default:
-            return 800; // Use a timeout of 800 ms.
+            return 1;
     }
 }
 
@@ -315,6 +317,9 @@ uint16_t get_alt_repeat_key_keycode_user(uint16_t keycode, uint8_t mods) {
 // User macro callbacks (https://docs.qmk.fm/#/feature_macros)
 ///////////////////////////////////////////////////////////////////////////////
 
+// Set while ALT_TAB is holding Alt down.
+static bool alt_tab_active = false;
+
 bool process_record_user(uint16_t keycode, keyrecord_t* record) {
     // Order is required
     if (!process_achordion(keycode, record)) {
@@ -322,6 +327,22 @@ bool process_record_user(uint16_t keycode, keyrecord_t* record) {
     }
     process_record_live(keycode, record);
     if (!process_custom_shift_keys(keycode, record)) {
+        return false;
+    }
+
+    // Alt stays down after the first tap, so tapping again steps on through
+    // the windows instead of flipping between the last two (NAV's Shift steps
+    // back). layer_state_set_user lets go of Alt when NAV is released.
+    if (keycode == ALT_TAB) {
+        if (record->event.pressed) {
+            if (!alt_tab_active) {
+                alt_tab_active = true;
+                register_code(KC_LALT);
+            }
+            register_code(KC_TAB);
+        } else {
+            unregister_code(KC_TAB);
+        }
         return false;
     }
 
@@ -367,6 +388,14 @@ void matrix_scan_user(void) {
     achordion_task();
 }
 
+layer_state_t layer_state_set_user(layer_state_t state) {
+    if (alt_tab_active && !layer_state_cmp(state, NAV)) {
+        unregister_code(KC_LALT);
+        alt_tab_active = false;
+    }
+    return state;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // Live view for the web remapper (raw HID, polled by the host)
 ///////////////////////////////////////////////////////////////////////////////
@@ -388,7 +417,14 @@ enum live_command_ids {
     id_live_get_state  = 0xF0,
     id_live_get_events = 0xF1,
     id_live_bootloader = 0xF2,
+    id_live_read_flash = 0xF3, // for finding out what the bootloader allows
+    id_live_read_fuses = 0xF4,
 };
+
+#    ifdef __AVR__
+#        include <avr/boot.h>
+#        include <avr/pgmspace.h>
+#    endif
 
 #    define LIVE_EVENT_COUNT 64 // power of two, so the ring index survives the sequence wrapping; 448 bytes of RAM
 #    define LIVE_EVENT_SIZE 7
@@ -488,6 +524,31 @@ bool via_command_kb(uint8_t* data, uint8_t length) {
             }
             break;
         }
+
+#    ifdef __AVR__
+        // Flash bytes by LPM from the application section, which the boot
+        // lock bits may refuse for the bootloader's own pages (reads 0xFF then).
+        case id_live_read_flash: {
+            uint16_t address = data[1] | (data[2] << 8);
+            uint8_t  size    = data[3] < 28 ? data[3] : 28;
+
+            for (uint8_t i = 0; i < size; i++) {
+                data[4 + i] = pgm_read_byte((uint16_t)(address + i));
+            }
+            break;
+        }
+
+        // Fuses, lock bits and signature: readable from software whatever the lock bits say.
+        case id_live_read_fuses:
+            data[1] = boot_lock_fuse_bits_get(GET_LOW_FUSE_BITS);
+            data[2] = boot_lock_fuse_bits_get(GET_HIGH_FUSE_BITS);
+            data[3] = boot_lock_fuse_bits_get(GET_EXTENDED_FUSE_BITS);
+            data[4] = boot_lock_fuse_bits_get(GET_LOCK_BITS);
+            data[5] = boot_signature_byte_get(0x0000);
+            data[6] = boot_signature_byte_get(0x0002);
+            data[7] = boot_signature_byte_get(0x0004);
+            break;
+#    endif
 
         case id_live_bootloader:
             // Reply first so the host knows the command landed before the device drops off the bus.

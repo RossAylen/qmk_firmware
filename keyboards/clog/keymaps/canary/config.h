@@ -17,6 +17,9 @@
 
 // Enable the streak feature
 #define ACHORDION_STREAK
+// A tap-hold key held with a same-hand key is always a tap, however long it is
+// held: the hold is for the other hand (achordion_chord). See achordion.c.
+#define ACHORDION_NO_TIMEOUT
 
 // Holding Shift while Caps Word is active inverts the shift state.
 #define CAPS_WORD_INVERT_ON_SHIFT
@@ -25,3 +28,8 @@
 
 // Don't apply custom shift keys with mods other than Shift.
 #define CUSTOM_SHIFT_KEYS_NEGMODS ~MOD_MASK_SHIFT
+
+// A USB serial number, so Chrome remembers the Clog Studio page's WebHID
+// permission across replugs and flashes; it forgets devices without one. The
+// same on both halves, so either one on the cable is the same keyboard.
+#define SERIAL_NUMBER "clog"
