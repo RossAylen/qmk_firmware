@@ -390,7 +390,7 @@ enum live_command_ids {
     id_live_bootloader = 0xF2,
 };
 
-#    define LIVE_EVENT_COUNT 32 // power of two, so the ring index survives the sequence wrapping
+#    define LIVE_EVENT_COUNT 64 // power of two, so the ring index survives the sequence wrapping; 448 bytes of RAM
 #    define LIVE_EVENT_SIZE 7
 #    define LIVE_EVENTS_PER_REPLY 4 // (32 - 4 header bytes) / 7
 
