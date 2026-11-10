@@ -3,6 +3,12 @@
 #include "features/achordion.h"
 #include "features/custom_shift_keys.h"
 
+#ifdef VIA_ENABLE
+#    include "raw_hid.h"
+#endif
+
+void process_record_live(uint16_t keycode, keyrecord_t* record);
+
 ///////////////////////////////////////////////////////////////////////////////
 // Aliases and definitions
 ///////////////////////////////////////////////////////////////////////////////
@@ -314,6 +320,7 @@ bool process_record_user(uint16_t keycode, keyrecord_t* record) {
     if (!process_achordion(keycode, record)) {
         return false;
     }
+    process_record_live(keycode, record);
     if (!process_custom_shift_keys(keycode, record)) {
         return false;
     }
@@ -359,3 +366,142 @@ bool process_record_user(uint16_t keycode, keyrecord_t* record) {
 void matrix_scan_user(void) {
     achordion_task();
 }
+
+///////////////////////////////////////////////////////////////////////////////
+// Live view for the web remapper (raw HID, polled by the host)
+///////////////////////////////////////////////////////////////////////////////
+
+#ifdef VIA_ENABLE
+
+/**
+ * The host polls; the keyboard never sends unprompted. raw_hid_send() waits up
+ * to ~10 ms for the host to read, and nothing reads the raw HID endpoint while
+ * the web app is closed, so pushing events would stall the scan loop.
+ *
+ * Events go into a ring indexed by an 8-bit sequence number. The host asks for
+ * events from the next sequence it expects; if it fell more than a ring behind,
+ * the reply starts at the oldest event still held and the host sees the gap.
+ */
+
+// Command ids sit above VIA's own (0x01-0x14) and below id_unhandled (0xFF).
+enum live_command_ids {
+    id_live_get_state  = 0xF0,
+    id_live_get_events = 0xF1,
+    id_live_bootloader = 0xF2,
+};
+
+#    define LIVE_EVENT_COUNT 32 // power of two, so the ring index survives the sequence wrapping
+#    define LIVE_EVENT_SIZE 7
+#    define LIVE_EVENTS_PER_REPLY 4 // (32 - 4 header bytes) / 7
+
+// Event flags
+#    define LIVE_PRESSED 0x80
+#    define LIVE_PROCESSED 0x40 // as QMK acted on it, after combos, tap-hold and Achordion
+#    define LIVE_COMBO 0x20
+#    define LIVE_TAP_COUNT 0x0F
+
+typedef struct {
+    uint8_t  flags;
+    uint8_t  row;
+    uint8_t  col;
+    uint16_t keycode;
+    uint16_t time;
+} live_event_t;
+
+static live_event_t live_events[LIVE_EVENT_COUNT];
+static uint8_t      live_head; // sequence number of the next event to be written
+
+static void live_record(uint16_t keycode, keyrecord_t* record, uint8_t source) {
+    live_event_t* e = &live_events[live_head % LIVE_EVENT_COUNT];
+
+    e->flags   = source | (record->event.pressed ? LIVE_PRESSED : 0) | (IS_COMBOEVENT(record->event) ? LIVE_COMBO : 0) | (record->tap.count & LIVE_TAP_COUNT);
+    e->row     = record->event.key.row;
+    e->col     = record->event.key.col;
+    e->keycode = keycode;
+    e->time    = record->event.time;
+    live_head++;
+}
+
+// Physical presses and releases, before combos and tap-hold see them.
+bool pre_process_record_user(uint16_t keycode, keyrecord_t* record) {
+    live_record(keycode, record, 0);
+    return true;
+}
+
+void process_record_live(uint16_t keycode, keyrecord_t* record) {
+    live_record(keycode, record, LIVE_PROCESSED);
+}
+
+bool via_command_kb(uint8_t* data, uint8_t length) {
+    switch (data[0]) {
+        case id_live_get_state: {
+            uint32_t layers = layer_state;
+            uint16_t now    = timer_read();
+
+            data[1] = is_caps_word_on() ? 1 : 0;
+            data[2] = layers & 0xFF;
+            data[3] = (layers >> 8) & 0xFF;
+            data[4] = (layers >> 16) & 0xFF;
+            data[5] = (layers >> 24) & 0xFF;
+            data[6] = default_layer_state & 0xFF;
+            data[7] = get_mods();
+            data[8] = get_oneshot_mods();
+            data[9] = get_weak_mods();
+            data[10] = MATRIX_ROWS;
+            for (uint8_t row = 0; row < MATRIX_ROWS; row++) {
+                data[11 + row] = matrix_get_row(row);
+            }
+            data[11 + MATRIX_ROWS] = live_head;
+            data[12 + MATRIX_ROWS] = now & 0xFF;
+            data[13 + MATRIX_ROWS] = now >> 8;
+            break;
+        }
+
+        case id_live_get_events: {
+            uint8_t from      = data[1];
+            uint8_t available = live_head - from;
+
+            if (available > LIVE_EVENT_COUNT) {
+                from      = live_head - LIVE_EVENT_COUNT;
+                available = LIVE_EVENT_COUNT;
+            }
+            uint8_t count = available < LIVE_EVENTS_PER_REPLY ? available : LIVE_EVENTS_PER_REPLY;
+
+            data[1] = live_head;
+            data[2] = from;
+            data[3] = count;
+            for (uint8_t i = 0; i < count; i++) {
+                live_event_t* e = &live_events[(uint8_t)(from + i) % LIVE_EVENT_COUNT];
+                uint8_t*      d = &data[4 + i * LIVE_EVENT_SIZE];
+
+                d[0] = e->flags;
+                d[1] = e->row;
+                d[2] = e->col;
+                d[3] = e->keycode & 0xFF;
+                d[4] = e->keycode >> 8;
+                d[5] = e->time & 0xFF;
+                d[6] = e->time >> 8;
+            }
+            break;
+        }
+
+        case id_live_bootloader:
+            // Reply first so the host knows the command landed before the device drops off the bus.
+            raw_hid_send(data, length);
+            wait_ms(100);
+            bootloader_jump();
+            return true;
+
+        default:
+            return false;
+    }
+
+    raw_hid_send(data, length);
+    return true;
+}
+
+#else
+
+void process_record_live(uint16_t keycode, keyrecord_t* record) {}
+
+#endif // VIA_ENABLE

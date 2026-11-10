@@ -19,6 +19,9 @@ EXTRAKEY_ENABLE = yes
 LTO_ENABLE = yes
 REPEAT_KEY_ENABLE = yes
 
+# Live remapping and key view from the web app (raw HID + dynamic keymap)
+VIA_ENABLE = yes
+
 # Disable for space
 MOUSEKEY_ENABLE = no
 CONSOLE_ENABLE ?= no
