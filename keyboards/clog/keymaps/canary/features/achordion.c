@@ -151,6 +151,10 @@ bool process_achordion(uint16_t keycode, keyrecord_t* record) {
             // Plumb hold release event.
             recursively_process_record(&tap_hold_record, STATE_RELEASED);
         } else if (!pressed_another_key_before_release) {
+#    ifdef ACHORDION_LONE_HOLD_DOES_NOTHING // Local change: a hold is only for the next key.
+            dprintln("Achordion: Key released alone. Dropping the hold.");
+            clear_eager_mods();
+#    else
             // No other key was pressed between the press and release of the tap-hold
             // key, simulate a hold and then a release without waiting for Achordion
             // timeout to end.
@@ -159,6 +163,7 @@ bool process_achordion(uint16_t keycode, keyrecord_t* record) {
             tap_hold_record.event.pressed = false;
             // Plumb hold release event.
             recursively_process_record(&tap_hold_record, STATE_RELEASED);
+#    endif
         } else {
             dprintf("Achordion: Key released.%s\n", eager_mods ? " Clearing eager mods." : "");
             if (is_mt) {

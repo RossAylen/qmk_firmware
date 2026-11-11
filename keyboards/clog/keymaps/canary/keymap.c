@@ -194,16 +194,10 @@ bool achordion_chord(uint16_t tap_hold_keycode, keyrecord_t* tap_hold_record, ui
     return achordion_opposite_hands(tap_hold_record, other_record);
 }
 
+// No modifier reaches the computer until the next key settles the hold, as
+// with SYM. Ctrl or Shift for the mouse are on NAV, held for as long as they're held.
 bool achordion_eager_mod(uint8_t mod) {
-    switch (mod) {
-        case MOD_LSFT:
-        case MOD_LCTL:
-        case MOD_LALT:
-            return true; // Eagerly apply left mods for mousing
-
-        default:
-            return false;
-    }
+    return false;
 }
 
 uint16_t achordion_timeout(uint16_t tap_hold_keycode) {

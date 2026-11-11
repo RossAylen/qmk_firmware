@@ -21,6 +21,11 @@
 // held: the hold is for the other hand (achordion_chord). See achordion.c.
 #define ACHORDION_NO_TIMEOUT
 
+// A tap-hold key held and let go without another key does nothing, as the SYM
+// keys always did, instead of sending its Ctrl, Shift, Alt or GUI on its own
+// (a lone GUI opens the GNOME overview, a lone Alt the menu bar). See achordion.c.
+#define ACHORDION_LONE_HOLD_DOES_NOTHING
+
 // Holding Shift while Caps Word is active inverts the shift state.
 #define CAPS_WORD_INVERT_ON_SHIFT
 // When idle, turn off Caps Word after 5 seconds.
