@@ -276,9 +276,17 @@ static inline void dump_key_buffer(void) {
         state &= ~(1 << key_index);    \
     } while (0)
 
+// A keymap that builds its combos at run time (from EEPROM, say) defines
+// COMBO_KEYS_IN_RAM, and its key lists are read from RAM instead of flash.
+#ifdef COMBO_KEYS_IN_RAM
+#    define COMBO_KEY(p) (*(p))
+#else
+#    define COMBO_KEY(p) pgm_read_word(p)
+#endif
+
 static inline void _find_key_index_and_count(const uint16_t *keys, uint16_t keycode, uint16_t *key_index, uint8_t *key_count) {
     while (true) {
-        uint16_t key = pgm_read_word(&keys[*key_count]);
+        uint16_t key = COMBO_KEY(&keys[*key_count]);
         if (keycode == key) *key_index = *key_count;
         if (COMBO_END == key) break;
         (*key_count)++;
@@ -389,9 +397,9 @@ combo_t *overlaps(combo_t *combo1, combo_t *combo2) {
     uint16_t key1, key2;
     bool     overlaps = false;
 
-    while ((key1 = pgm_read_word(&combo1->keys[idx1])) != COMBO_END) {
+    while ((key1 = COMBO_KEY(&combo1->keys[idx1])) != COMBO_END) {
         idx2 = 0;
-        while ((key2 = pgm_read_word(&combo2->keys[idx2])) != COMBO_END) {
+        while ((key2 = COMBO_KEY(&combo2->keys[idx2])) != COMBO_END) {
             if (key1 == key2) {
                 overlaps = true;
             }

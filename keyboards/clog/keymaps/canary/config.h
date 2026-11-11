@@ -4,19 +4,21 @@
 // is a partial fix to slow down the rate at which macros are sent.
 #define TAP_CODE_DELAY 5
 
-// Tap-hold configuration for home row mods.
-#define TAPPING_TERM 170
+// Tap-hold configuration. The tapping terms are the layout's, in EEPROM
+// (keymap.c), and QMK's own default of 200 ms holds until it has one.
 #define TAPPING_TERM_PER_KEY
 #define PERMISSIVE_HOLD
 #define QUICK_TAP_TERM_PER_KEY
 
-// BASE, SYM, NAV, NUM and the modifier layers CTRL, SHIFT, ALT and GUI.
+// Eight layers, all set from the web app: what they are called and which
+// modifier each holds is in the layout's EEPROM block (keymap.c).
 #define DYNAMIC_KEYMAP_LAYER_COUNT 8
 
-// Combos from the base layer.
+// Combos are keys on the base layer pressed together, and keymap.c builds them
+// from the layout in EEPROM, so their key lists are in RAM.
 #define COMBO_ONLY_FROM_LAYER 0
-// The default is 50
-#define COMBO_TERM 60
+#define COMBO_KEYS_IN_RAM
+#define COMBO_TERM_PER_COMBO
 
 // Enable the streak feature
 #define ACHORDION_STREAK
@@ -42,6 +44,9 @@
 // same on both halves, so either one on the cable is the same keyboard.
 #define SERIAL_NUMBER "clog"
 
-// VIA's macro buffer stops 4 bytes short of the end of EEPROM, where keymap.c
-// records the shape of the keymap stored, so a flash can keep it.
-#define DYNAMIC_KEYMAP_EEPROM_MAX_ADDR (TOTAL_EEPROM_BYTE_COUNT - 5)
+// The end of EEPROM, after VIA's macro buffer, holds the rest of the layout
+// (combos, timings, Shift and Alt-Repeat pairs, layer names and modifiers) and,
+// in its last 4 bytes, the shape of the keymap stored, so a flash can keep it.
+// See keymap.c.
+#define CLOG_CONFIG_SIZE 232
+#define DYNAMIC_KEYMAP_EEPROM_MAX_ADDR (TOTAL_EEPROM_BYTE_COUNT - 4 - CLOG_CONFIG_SIZE - 1)

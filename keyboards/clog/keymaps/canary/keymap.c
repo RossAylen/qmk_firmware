@@ -1,171 +1,194 @@
 #include QMK_KEYBOARD_H
 
+#include "eeprom.h"
 #include "features/achordion.h"
 #include "features/custom_shift_keys.h"
 
-#ifdef VIA_ENABLE
-#    include "raw_hid.h"
+#ifndef VIA_ENABLE
+#    error "The layout is set from the web app over VIA's raw HID: VIA_ENABLE must be on"
 #endif
+#include "raw_hid.h"
+
+/**
+ * This firmware holds no layout. The keymap is VIA's, in EEPROM, and the rest
+ * of the layout (combos, tapping terms, Shift and Alt-Repeat pairs, what each
+ * layer is called and the modifiers it holds) is a block at the end of EEPROM
+ * below. Both are written from the web app, Clog Studio; a blank keyboard types
+ * nothing until it does.
+ */
 
 void process_record_live(uint16_t keycode, keyrecord_t* record);
 
 ///////////////////////////////////////////////////////////////////////////////
-// Aliases and definitions
+// Keymap
 ///////////////////////////////////////////////////////////////////////////////
-
-enum layers {
-    BASE = 0,
-    SYM,
-    NAV,
-    NUM,
-    // Modifier layers: each holds its modifier down while it is on (layer_mods).
-    CTRL,
-    SHIFT,
-    ALT,
-    GUI,
-};
 
 enum custom_keycodes {
-    SELLINE = SAFE_RANGE, // Select the current line
-    STD_CLN,              // std::
-    USRNAME,              // Ross
-    UP_DIR,               // ../
-    // Custom repeat key
-    M_UPDIR,   // . -> ../
-    M_TDIR,    // , -> ./
-    M_INCLUDE, // # -> #include
-    M_DOCSTR,  // " -> """<cursor>"""
-    M_MKGRVS,  // ` -> ```<cursor>```
-    ALT_TAB,   // Alt+Tab, Alt held until NAV is released
+    ALT_TAB = SAFE_RANGE, // Alt+Tab, Alt held until its layer is released
 };
-
-/**
- *  w l y p b   z f o u '
- *  c r s t g   m n e i a
- *  q j v d k   x h ; , .
- */
-
-// Left hand home row
-#define HOME_C LT(SYM, KC_C)
-#define HOME_R LT(ALT, KC_R)
-#define HOME_S LT(SHIFT, KC_S)
-#define HOME_T LT(CTRL, KC_T)
-
-// Right hand home row
-#define HOME_N LT(CTRL, KC_N)
-#define HOME_E LT(SHIFT, KC_E)
-#define HOME_I LT(ALT, KC_I)
-#define HOME_A LT(SYM, KC_A)
-
-// Pinky's lower gui's
-#define PNKY_Q LT(GUI, KC_Q)
-#define PNKY_DOT LT(GUI, KC_DOT)
-
-// Thumb keys (left/right and inner/outer)
-#define THMB_LI KC_SPC
-#define THMB_RI QK_AREP
-
-///////////////////////////////////////////////////////////////////////////////
-// My Keymap
-///////////////////////////////////////////////////////////////////////////////
 
 // clang-format off
 
+// One layer of nothing, which VIA copies to a blank EEPROM. The layers past it
+// come out transparent.
 const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
+    [0] = LAYOUT_split_3x5_2(
+        XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX,      XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX,
+        XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX,      XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX,
+        XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX,      XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX,
 
-    [BASE] = LAYOUT_split_3x5_2(
-        KC_W,     KC_L,    KC_Y,    KC_P,    KC_B,        KC_Z,    KC_F,    KC_O,    KC_U,  KC_QUOT,
-        HOME_C, HOME_R,  HOME_S,  HOME_T,    KC_G,        KC_M,  HOME_N,  HOME_E,  HOME_I,   HOME_A,
-        PNKY_Q,   KC_J,    KC_V,    KC_D,    KC_K,        KC_X,    KC_H, KC_SCLN, KC_COMM, PNKY_DOT,
-
-                                 MO(NAV), THMB_LI,        THMB_RI, MO(NUM)
-    ),
-
-    [SYM] = LAYOUT_split_3x5_2(
-        XXXXXXX, KC_LABK, KC_RABK, KC_BSLS, USRNAME,      KC_PIPE, STD_CLN, KC_LBRC, KC_RBRC, XXXXXXX,
-        KC_EXLM, KC_MINS, KC_PLUS,  KC_EQL, KC_HASH,      KC_AMPR, KC_COLN, KC_LPRN, KC_RPRN, KC_PERC,
-        XXXXXXX, KC_SLSH, KC_ASTR, KC_CIRC, KC_GRV,       KC_TILD,  KC_DLR, KC_LCBR, KC_RCBR, XXXXXXX,
-
-                                   _______, KC_UNDS,      _______, _______
-    ),
-
-    //  NAV layers doubles as mousing layer (i.e. left hand shortcuts)
-
-    [NAV] = LAYOUT_split_3x5_2(
-        C(KC_Z),  KC_DEL, C(S(KC_V)), XXXXXXX,    XXXXXXX,       XXXXXXX, XXXXXXX, SELLINE, XXXXXXX, XXXXXXX,
-        C(KC_C), ALT_TAB,    KC_LSFT, KC_LCTL, C(KC_SLSH),       KC_PGUP, KC_LEFT,   KC_UP, KC_RGHT, XXXXXXX,
-        KC_LGUI, C(KC_X),    C(KC_V), C(KC_D),    XXXXXXX,       KC_PGDN, KC_HOME, KC_DOWN,  KC_END, XXXXXXX,
-
-                                        _______,  _______,       _______, _______
-    ),
-
-    [NUM] = LAYOUT_split_3x5_2(
-        XXXXXXX,  KC_4,    KC_5,    KC_6,    XXXXXXX,       XXXXXXX, C(KC_MINS), XXXXXXX, C(KC_EQL), XXXXXXX,
-           KC_0,  KC_1,    KC_2,    KC_3,     KC_DOT,       KC_VOLU,    KC_RCTL, KC_RSFT,   KC_LALT, XXXXXXX,
-        XXXXXXX,  KC_7,    KC_8,    KC_9,    XXXXXXX,       KC_VOLD,    XXXXXXX, XXXXXXX,   XXXXXXX, KC_LGUI,
-
-                                   XXXXXXX,  _______,       _______, _______
-    ),
-
-    // The modifier layers start with every key falling through to the layer
-    // below, so with the modifier held it sends that key with it.
-
-    [CTRL] = LAYOUT_split_3x5_2(
-        _______, _______, _______, _______, _______,      _______, _______, _______, _______, _______,
-        _______, _______, _______, _______, _______,      _______, _______, _______, _______, _______,
-        _______, _______, _______, _______, _______,      _______, _______, _______, _______, _______,
-
-                                   _______, _______,      _______, _______
-    ),
-
-    [SHIFT] = LAYOUT_split_3x5_2(
-        _______, _______, _______, _______, _______,      _______, _______, _______, _______, _______,
-        _______, _______, _______, _______, _______,      _______, _______, _______, _______, _______,
-        _______, _______, _______, _______, _______,      _______, _______, _______, _______, _______,
-
-                                   _______, _______,      _______, _______
-    ),
-
-    [ALT] = LAYOUT_split_3x5_2(
-        _______, _______, _______, _______, _______,      _______, _______, _______, _______, _______,
-        _______, _______, _______, _______, _______,      _______, _______, _______, _______, _______,
-        _______, _______, _______, _______, _______,      _______, _______, _______, _______, _______,
-
-                                   _______, _______,      _______, _______
-    ),
-
-    [GUI] = LAYOUT_split_3x5_2(
-        _______, _______, _______, _______, _______,      _______, _______, _______, _______, _______,
-        _______, _______, _______, _______, _______,      _______, _______, _______, _______, _______,
-        _______, _______, _______, _______, _______,      _______, _______, _______, _______, _______,
-
-                                   _______, _______,      _______, _______
+                                   XXXXXXX, XXXXXXX,      XXXXXXX, XXXXXXX
     ),
 };
 
 // clang-format on
 
 ///////////////////////////////////////////////////////////////////////////////
+// The rest of the layout, in EEPROM
+///////////////////////////////////////////////////////////////////////////////
+
+/**
+ * CLOG_CONFIG_SIZE bytes from just after VIA's macro buffer (config.h), read
+ * and written by the web app with id_config_read and id_config_write, offsets
+ * big-endian as VIA's own; the 16-bit values inside are little-endian. A key is
+ * named by its matrix index, row * MATRIX_COLS + col. Zero means none or
+ * default throughout, so a zeroed block is an empty layout, and anything but
+ * CONFIG_VERSION in the first byte reads as one.
+ */
+#define CONFIG_VERSION 1
+#define CONFIG_KEYS (MATRIX_ROWS * MATRIX_COLS)
+#define CONFIG_NAME_SIZE 5 // ASCII, padded with 0
+#define CONFIG_COMBOS 10
+#define CONFIG_COMBO_KEYS 3
+#define CONFIG_NO_KEY 0xFF
+#define CONFIG_SHIFTS 10
+#define CONFIG_ALTS 10
+
+// A key's timing: bits 0-6 its tapping term in steps of 5 ms (0 for the
+// layout's), and bit 7 a quick tap, so tapping it and then holding it repeats
+// its tap rather than holding.
+#define TIMING_TERM 0x7F
+#define TIMING_TERM_STEP 5
+#define TIMING_QUICK_TAP 0x80
+
+// When an Alt-Repeat pair applies: whether the last key was typed with Shift.
+enum alt_shift {
+    ALT_EITHER = 0,
+    ALT_WITHOUT_SHIFT,
+    ALT_WITH_SHIFT,
+};
+
+typedef struct PACKED {
+    uint8_t  keys[CONFIG_COMBO_KEYS]; // pressed together, CONFIG_NO_KEY for none
+    uint16_t keycode;                 // what they send
+} config_combo_t;
+
+typedef struct PACKED {
+    uint16_t from; // a keycode, or a tap-hold key's tap keycode
+    uint16_t to;   // what it sends with Shift instead
+} config_shift_t;
+
+typedef struct PACKED {
+    uint16_t from; // the last key typed, as a tap keycode
+    uint8_t  shift; // enum alt_shift
+    uint16_t to;    // what Alt-Repeat sends after it
+} config_alt_t;
+
+typedef struct PACKED {
+    uint8_t        version;
+    uint16_t       tapping_term; // ms
+    uint8_t        combo_term;   // ms
+    uint8_t        layer_mods[DYNAMIC_KEYMAP_LAYER_COUNT]; // get_mods() bits each layer holds while on
+    char           layer_names[DYNAMIC_KEYMAP_LAYER_COUNT][CONFIG_NAME_SIZE]; // only for the app
+    uint8_t        key_timing[CONFIG_KEYS];
+    config_combo_t combos[CONFIG_COMBOS];
+    config_shift_t shift[CONFIG_SHIFTS];
+    config_alt_t   alt[CONFIG_ALTS];
+} config_t;
+
+STATIC_ASSERT(sizeof(config_t) == CLOG_CONFIG_SIZE, "config.h's CLOG_CONFIG_SIZE must match config_t");
+
+#define CONFIG_EEPROM ((uint8_t*)(DYNAMIC_KEYMAP_EEPROM_MAX_ADDR + 1))
+
+static config_t config;       // the block, or all zeros while it isn't valid
+static bool     config_valid; // whether the EEPROM holds a layout
+static bool     combos_stale; // the base layer changed under the combos
+
+// No combos built in; load_combos() builds them, and combos.c hands them to QMK.
+combo_t         key_combos[] = {};
+combo_t         clog_combos[CONFIG_COMBOS];
+uint8_t         clog_combo_count;
+static uint16_t combo_keys[CONFIG_COMBOS][CONFIG_COMBO_KEYS + 1];
+
+// QMK matches combos on keycodes from the base layer (COMBO_ONLY_FROM_LAYER),
+// and the layout names keys, so each combo takes the keycodes its keys have
+// there now. A key with nothing on the base layer leaves the combo out.
+static void load_combos(void) {
+    clog_combo_count = 0;
+    for (uint8_t i = 0; i < CONFIG_COMBOS; i++) {
+        const config_combo_t* c = &config.combos[i];
+        uint8_t               n = 0;
+
+        if (c->keycode == KC_NO) {
+            continue;
+        }
+        for (uint8_t k = 0; k < CONFIG_COMBO_KEYS; k++) {
+            if (c->keys[k] >= CONFIG_KEYS) {
+                continue;
+            }
+            uint16_t keycode = dynamic_keymap_get_keycode(0, c->keys[k] / MATRIX_COLS, c->keys[k] % MATRIX_COLS);
+            if (keycode != KC_NO && keycode != KC_TRNS) {
+                combo_keys[clog_combo_count][n++] = keycode;
+            }
+        }
+        if (n < 2) {
+            continue;
+        }
+        combo_keys[clog_combo_count][n] = COMBO_END;
+        clog_combos[clog_combo_count]  = (combo_t){.keys = combo_keys[clog_combo_count], .keycode = c->keycode};
+        clog_combo_count++;
+    }
+    combos_stale = false;
+}
+
+static void load_config(void) {
+    eeprom_read_block(&config, CONFIG_EEPROM, sizeof(config));
+    config_valid = config.version == CONFIG_VERSION;
+    if (!config_valid) {
+        memset(&config, 0, sizeof(config));
+    }
+    load_combos();
+}
+
+// Called when the keymap was reset, so the two never disagree.
+static void clear_config(void) {
+    eeprom_update_byte(CONFIG_EEPROM, 0);
+}
+
+uint16_t get_combo_term(uint16_t index, combo_t* combo) {
+    return config.combo_term ? config.combo_term : COMBO_TERM;
+}
+
+void housekeeping_task_user(void) {
+    if (combos_stale) {
+        load_combos();
+    }
+}
+
+///////////////////////////////////////////////////////////////////////////////
 // Modifier layers
 ///////////////////////////////////////////////////////////////////////////////
 
-// CTRL, SHIFT, ALT and GUI are layers like SYM, held from the home row, and
-// each holds its modifier down while it is on. A key left transparent on one
-// falls through to the layer below and goes with the modifier: hold T and
-// press O for Ctrl+O, or NAV's left arrow for Ctrl+Left. A key changed on one
-// sends just what it is changed to, as a key on SYM does.
-uint8_t const layer_mods[] = {
-    [CTRL]  = MOD_BIT(KC_LCTL),
-    [SHIFT] = MOD_BIT(KC_LSFT),
-    [ALT]   = MOD_BIT(KC_LALT), // I3 only reads left alt
-    [GUI]   = MOD_BIT(KC_LGUI),
-};
-
+// A layer can hold modifiers down while it is on, as a home-row Ctrl does: a
+// key left transparent on it falls through to the layer below and goes with
+// the modifier, hold T and press O for Ctrl+O, or NAV's left arrow for
+// Ctrl+Left. A key changed on it sends just what it is changed to, as a key on
+// a symbol layer does.
 static uint8_t      layer_mods_on;           // what the modifier layers have added to get_mods()
 static matrix_row_t own_keys[MATRIX_ROWS]; // keys down that a modifier layer changed
 
 static uint8_t mods_of_layer(uint8_t layer) {
-    return layer < ARRAY_SIZE(layer_mods) ? layer_mods[layer] : 0;
+    return layer < DYNAMIC_KEYMAP_LAYER_COUNT ? config.layer_mods[layer] : 0;
 }
 
 // Hold down the modifiers of the layers on in `state`, and none while a key
@@ -177,9 +200,9 @@ static void update_layer_mods(layer_state_t state) {
     for (uint8_t row = 0; row < MATRIX_ROWS; row++) {
         own |= own_keys[row] != 0;
     }
-    for (uint8_t layer = 0; layer < ARRAY_SIZE(layer_mods) && !own; layer++) {
+    for (uint8_t layer = 0; layer < DYNAMIC_KEYMAP_LAYER_COUNT && !own; layer++) {
         if (state & ((layer_state_t)1 << layer)) {
-            want |= layer_mods[layer];
+            want |= mods_of_layer(layer);
         }
     }
     if (want != layer_mods_on) {
@@ -215,120 +238,69 @@ static void track_own_keys(keyrecord_t* record) {
 // Custom shift keys (https://getreuer.info/posts/keyboards/custom-shift-keys)
 ///////////////////////////////////////////////////////////////////////////////
 
-/**
- *  w l y p b   z f o u '
- *  c r s t g   m n e i a
- *  q j v d k   x h ; , .
- */
-
-custom_shift_key_t const custom_shift_keys[] = {
-    {KC_SCLN, KC_AT},   // ; -> @
-    {KC_COMM, KC_QUES}, // . -> ?
-    {KC_EQL, KC_EQL},   // Don't shift =
-    {KC_SLSH, KC_SLSH}, // Don't shift /
-};
-
-uint8_t NUM_CUSTOM_SHIFT_KEYS = sizeof(custom_shift_keys) / sizeof(custom_shift_key_t);
-
-///////////////////////////////////////////////////////////////////////////////
-// Combos (https://docs.qmk.fm/#/feature_combo)
-///////////////////////////////////////////////////////////////////////////////
-
-/**
- *  w l y p b   z f o u '
- *  c r s t g   m n e i a
- *  q j v d k   x h ; , .
- */
-
-uint16_t const caps_combo[] PROGMEM = {KC_V, KC_SCLN, COMBO_END}; // Middle fingers
-
-uint16_t const bck_combo[] PROGMEM = {HOME_N, HOME_E, COMBO_END};    // RHS index + middle
-uint16_t const ent_combo[] PROGMEM = {HOME_E, HOME_I, COMBO_END}; // RHS middle + ring
-uint16_t const esc_combo[] PROGMEM = {HOME_R, HOME_S, COMBO_END};       // LHS ring + middle
-uint16_t const tab_combo[] PROGMEM = {HOME_S, HOME_T, COMBO_END};       // LHS index + middle
-
-combo_t key_combos[] = {
-    COMBO(caps_combo, CW_TOGG), //
-    COMBO(esc_combo, KC_ESC),   //
-    COMBO(ent_combo, KC_ENT),   //
-    COMBO(bck_combo, KC_BSPC),  //
-    COMBO(tab_combo, KC_TAB),   //
-};
+uint16_t get_custom_shift_keycode(uint16_t keycode) {
+    for (uint8_t i = 0; i < CONFIG_SHIFTS; i++) {
+        if (keycode != KC_NO && config.shift[i].from == keycode) {
+            return config.shift[i].to;
+        }
+    }
+    return KC_NO;
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 // Tap-hold configuration (https://docs.qmk.fm/#/tap_hold)
 ///////////////////////////////////////////////////////////////////////////////
 
-uint16_t get_tapping_term(uint16_t keycode, keyrecord_t* record) {
-    switch (keycode) {
-        // Ring and pinky fingers are slower, but symbols need to be fast.
-        case HOME_R:
-        case PNKY_Q:
-        case HOME_I:
-        case PNKY_DOT:
-            return TAPPING_TERM + 15;
+static uint8_t key_timing(keyrecord_t* record) {
+    keypos_t key = record->event.key;
 
-        default:
-            return TAPPING_TERM;
+    if (!IS_KEYEVENT(record->event) || key.row >= MATRIX_ROWS || key.col >= MATRIX_COLS) {
+        return 0;
     }
+    return config.key_timing[key.row * MATRIX_COLS + key.col];
 }
 
-uint16_t get_quick_tap_term(uint16_t keycode, keyrecord_t* record) {
-    // If you quickly hold a tap-hold key after tapping it, the tap action is
-    // repeated. Key repeating is useful e.g. for Vim navigation keys, but can
-    // lead to missed triggers in fast typing. Here, returning 0 means we
-    // instead want to "force hold" and disable key repeating.
-    switch (keycode) {
-        case HOME_N:
-            return QUICK_TAP_TERM; // Enable key repeating for search.
-        default:
-            return 0; // Otherwise, force hold and disable key repeating.
+uint16_t get_tapping_term(uint16_t keycode, keyrecord_t* record) {
+    uint8_t steps = key_timing(record) & TIMING_TERM;
+
+    if (steps) {
+        return steps * TIMING_TERM_STEP;
     }
+    return config.tapping_term ? config.tapping_term : TAPPING_TERM;
+}
+
+// If you quickly hold a tap-hold key after tapping it, the tap action is
+// repeated: useful on a key you hold to repeat, such as one for Vim's search,
+// but it misses holds in fast typing, so it is off unless the layout asks.
+uint16_t get_quick_tap_term(uint16_t keycode, keyrecord_t* record) {
+    return key_timing(record) & TIMING_QUICK_TAP ? get_tapping_term(keycode, record) : 0;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // Achordion (https://getreuer.info/posts/keyboards/achordion)
 ///////////////////////////////////////////////////////////////////////////////
 
+static bool on_thumb(keyrecord_t* record) {
+    uint8_t row = record->event.key.row;
+    return row == 3 || row == 7;
+}
+
+// A tap-hold key holds for a key on the other hand or a thumb, and a held
+// thumb key holds for any key.
 bool achordion_chord(uint16_t tap_hold_keycode, keyrecord_t* tap_hold_record, uint16_t other_keycode, keyrecord_t* other_record) {
-    // Allow same-hand holds when the other key is on the thumb cluster.
-    uint8_t row = other_record->event.key.row;
-    if (row == 3 || row == 7) {
+    if (on_thumb(other_record) || on_thumb(tap_hold_record)) {
         return true;
     }
-
     return achordion_opposite_hands(tap_hold_record, other_record);
 }
 
-// A mod-tap key, should one be made in the app, sends no modifier until the
-// next key settles the hold, as the modifier layers don't. Ctrl or Shift for
-// the mouse are on NAV, held for as long as they're held.
+// A mod-tap key sends no modifier until the next key settles the hold, as the
+// modifier layers don't.
 bool achordion_eager_mod(uint8_t mod) {
     return false;
 }
 
-uint16_t achordion_timeout(uint16_t tap_hold_keycode) {
-    // Disable achordion for the thumb keys. ACHORDION_NO_TIMEOUT means any
-    // other value only switches it on.
-    switch (tap_hold_keycode) {
-        case THMB_LI:
-        case THMB_RI:
-            return 0;
-        default:
-            return 1;
-    }
-}
-
 uint16_t achordion_streak_chord_timeout(uint16_t tap_hold_keycode, uint16_t next_keycode) {
-    // Exceptions so that certain hotkeys don't get blocked as streaks.
-    switch (tap_hold_keycode) {
-        case HOME_N:
-            if (next_keycode == KC_C || next_keycode == KC_V) {
-                return 0;
-            }
-            break;
-    }
-
     // The modifiers the key holds: its modifier layer's, or a mod-tap key's own
     // (5-bit, whose low nibble is the left hand's get_mods() bits for either hand).
     uint8_t mods = 0;
@@ -337,9 +309,16 @@ uint16_t achordion_streak_chord_timeout(uint16_t tap_hold_keycode, uint16_t next
     } else if (IS_QK_MOD_TAP(tap_hold_keycode)) {
         mods = mod_config(QK_MOD_TAP_GET_MODS(tap_hold_keycode)) & 0x0F;
     }
+    if (IS_QK_MOD_TAP(next_keycode)) {
+        next_keycode = QK_MOD_TAP_GET_TAP_KEYCODE(next_keycode);
+    } else if (IS_QK_LAYER_TAP(next_keycode)) {
+        next_keycode = QK_LAYER_TAP_GET_TAP_KEYCODE(next_keycode);
+    }
 
     if (mods == 0) {
-        return 0; // No streak detection for SYM.
+        return 0; // No streak detection for a plain layer.
+    } else if ((mods & ~MOD_MASK_CTRL) == 0 && (next_keycode == KC_C || next_keycode == KC_V)) {
+        return 0; // Copy and paste straight after typing.
     } else if ((mods & MOD_MASK_SHIFT) != 0) {
         return 100; // A short streak timeout for Shift.
     } else {
@@ -378,8 +357,11 @@ bool remember_last_key_user(uint16_t keycode, keyrecord_t* record, uint8_t* reme
     return true;
 }
 
+static bool alt_from_pair; // Alt-Repeat is sending one of the layout's pairs
+
+// Alt-Repeat sends the layout's pair for the last key, if it has one and no
+// modifier but Shift was held, and otherwise repeats the last key.
 uint16_t get_alt_repeat_key_keycode_user(uint16_t keycode, uint8_t mods) {
-    // Only process the tap part of tap-hold keys.
     switch (keycode) {
         case QK_MOD_TAP ... QK_MOD_TAP_MAX:
             keycode = QK_MOD_TAP_GET_TAP_KEYCODE(keycode);
@@ -389,42 +371,46 @@ uint16_t get_alt_repeat_key_keycode_user(uint16_t keycode, uint8_t mods) {
             break;
     }
 
-    // Process special cases, if no mods (other than shift) are active.
+    alt_from_pair = false;
     if ((mods & ~MOD_MASK_SHIFT) == 0) {
-        switch (keycode) {
-            case KC_COMM:
-                return M_TDIR; // , -> <BSPC>./
-            case KC_HASH:
-                return M_INCLUDE; // # -> include
-            case KC_DOT:
-                if ((mods & MOD_MASK_SHIFT) == 0) {
-                    return M_UPDIR; // . -> ./
-                }
-                break;
-            case KC_QUOT:
-                if ((mods & MOD_MASK_SHIFT) != 0) {
-                    return M_DOCSTR; // " -> ""<cursor>"""
-                }
-                break;
-            case KC_GRV: // ` -> ``<cursor>``` (for Markdown code)
-                return M_MKGRVS;
-            case KC_TILD:
-                return KC_SLSH; // ~ -> /
+        uint8_t shift = mods & MOD_MASK_SHIFT ? ALT_WITH_SHIFT : ALT_WITHOUT_SHIFT;
+
+        for (uint8_t i = 0; i < CONFIG_ALTS; i++) {
+            const config_alt_t* a = &config.alt[i];
+            if (keycode != KC_NO && a->from == keycode && (a->shift == ALT_EITHER || a->shift == shift)) {
+                alt_from_pair = true;
+                return a->to;
+            }
         }
     }
 
-    // Otherwise, function as a repeat key
-    return (((uint16_t)mods) << 8) | keycode;
+    if (!IS_QK_BASIC(keycode)) {
+        return keycode;
+    }
+    // The 8-bit mods in a keycode's 5 bits, as get_alt_repeat_key_keycode()
+    // does: mixed hands become the right.
+    uint8_t mods5 = ((mods & 0xF0) ? 0x10 : 0) | (((mods >> 4) | mods) & 0x0F);
+    return ((uint16_t)mods5 << 8) | keycode;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // User macro callbacks (https://docs.qmk.fm/#/feature_macros)
 ///////////////////////////////////////////////////////////////////////////////
 
-// Set while ALT_TAB is holding Alt down.
-static bool alt_tab_active = false;
+// Set while ALT_TAB is holding Alt down, with the layer it was pressed on.
+static bool    alt_tab_active = false;
+static uint8_t alt_tab_layer;
 
 bool process_record_user(uint16_t keycode, keyrecord_t* record) {
+    // An Alt-Repeat pair's keycode becomes the last key, so Alt-Repeat again
+    // goes on from it: with . to ./ and ./ to ../, . Alt-Repeat Alt-Repeat
+    // types ../../.
+    if (alt_from_pair && get_repeat_key_count() < 0 && record->event.pressed) {
+        alt_from_pair = false;
+        set_last_keycode(keycode);
+        set_last_mods(0);
+    }
+
     // Order is required
     if (!process_achordion(keycode, record)) {
         return false;
@@ -436,54 +422,25 @@ bool process_record_user(uint16_t keycode, keyrecord_t* record) {
     }
 
     // Alt stays down after the first tap, so tapping again steps on through
-    // the windows instead of flipping between the last two (NAV's Shift steps
-    // back). layer_state_set_user lets go of Alt when NAV is released.
+    // the windows instead of flipping between the last two (Shift steps back).
+    // It is let go with the layer the key is on, or with the key itself on the
+    // base layer.
     if (keycode == ALT_TAB) {
         if (record->event.pressed) {
             if (!alt_tab_active) {
                 alt_tab_active = true;
+                alt_tab_layer  = IS_KEYEVENT(record->event) ? layer_switch_get_layer(record->event.key) : 0;
                 register_code(KC_LALT);
             }
             register_code(KC_TAB);
         } else {
             unregister_code(KC_TAB);
+            if (alt_tab_layer == 0) {
+                unregister_code(KC_LALT);
+                alt_tab_active = false;
+            }
         }
         return false;
-    }
-
-    if (record->event.pressed) {
-        switch (keycode) {
-            case STD_CLN:
-                SEND_STRING_DELAY("std::", TAP_CODE_DELAY);
-                return false;
-            case SELLINE:
-                SEND_STRING_DELAY(SS_TAP(X_HOME) SS_LSFT(SS_TAP(X_END)), TAP_CODE_DELAY);
-                return false;
-            case UP_DIR:
-                SEND_STRING_DELAY("../", TAP_CODE_DELAY);
-                return false;
-            case USRNAME:
-                SEND_STRING_DELAY("Ross", TAP_CODE_DELAY);
-                return false;
-
-                // From the repeat key, break and return true.
-            case M_TDIR:
-                SEND_STRING_DELAY(/*,*/ SS_TAP(X_BSPC) "./", TAP_CODE_DELAY);
-                break;
-            case M_UPDIR:
-                SEND_STRING_DELAY(/*.*/ "./", TAP_CODE_DELAY);
-                set_last_keycode(UP_DIR); // . * * -> ../../
-                break;
-            case M_DOCSTR:
-                SEND_STRING(/*"*/ "\"\"\"\"\"" SS_TAP(X_LEFT) SS_TAP(X_LEFT) SS_TAP(X_LEFT));
-                break;
-            case M_MKGRVS:
-                SEND_STRING(/*`*/ "``\n\n```" SS_TAP(X_UP));
-                break;
-            case M_INCLUDE:
-                SEND_STRING(/*#*/ "include ");
-                break;
-        }
     }
 
     return true;
@@ -494,7 +451,7 @@ void matrix_scan_user(void) {
 }
 
 layer_state_t layer_state_set_user(layer_state_t state) {
-    if (alt_tab_active && !layer_state_cmp(state, NAV)) {
+    if (alt_tab_active && alt_tab_layer != 0 && !layer_state_cmp(state, alt_tab_layer)) {
         unregister_code(KC_LALT);
         alt_tab_active = false;
     }
@@ -505,8 +462,6 @@ layer_state_t layer_state_set_user(layer_state_t state) {
 ///////////////////////////////////////////////////////////////////////////////
 // Live view for the web remapper (raw HID, polled by the host)
 ///////////////////////////////////////////////////////////////////////////////
-
-#ifdef VIA_ENABLE
 
 /**
  * The host polls; the keyboard never sends unprompted. raw_hid_send() waits up
@@ -525,42 +480,54 @@ enum live_command_ids {
     id_live_bootloader = 0xF2,
     id_live_read_flash = 0xF3, // for finding out what the bootloader allows
     id_live_read_fuses = 0xF4,
-    id_live_get_keymap_c = 0xF5, // keymap.c's keymaps[], which a blank EEPROM keymap starts from
+    // 0xF5 was keymap.c's keymaps[], when keymap.c had a layout.
+    id_config_info  = 0xF6, // the layout block's version, size and table sizes, and whether it holds a layout
+    id_config_read  = 0xF7, // offset (big-endian), size; the bytes from data[4]
+    id_config_write = 0xF8, // the same, written; replies with what it wrote
 };
 
 /**
- * The keymap is the one in EEPROM, edited from the web app, and outlives a
- * flash; keymaps[] above only fills a blank EEPROM. VIA resets the EEPROM to
- * keymaps[] whenever the build date changes, so via_init_kb() marks it valid
- * for this build first, if what's there was stored in the same place and
- * shape. A QMK update that moves VIA's EEPROM, a new layer count or renumbered
- * keycodes changes the shape, and then via_init_kb() marks it invalid: VIA's
- * magic is only the build's day, so a build of another shape on the same day
- * would otherwise keep it, and read a new layer out of the old macro space.
- * VIA's own reset command, or a reset cut short, leaves its magic at 0xFF, and
- * that still resets too.
+ * The layout in EEPROM outlives a flash. VIA resets its EEPROM (the keymap and
+ * macros) whenever the build date changes, so via_init_kb() marks it valid for
+ * this build first, if what's there was stored in the same place and shape. A
+ * QMK update that moves VIA's EEPROM, a new layer count or renumbered keycodes
+ * changes the shape, and then via_init_kb() marks it invalid: VIA's magic is
+ * only the build's day, so a build of another shape on the same day would
+ * otherwise keep it, and read a new layer out of the old macro space. VIA's own
+ * reset command, or a reset cut short, leaves its magic at 0xFF, and that still
+ * resets too. Whenever the keymap resets, the layout block goes with it, so the
+ * app finds the keyboard blank and writes the whole layout back.
  */
 #    include "eeprom.h"
 #    include "nvm_via.h"
 #    include "nvm_eeprom_eeconfig_internal.h"
 #    include "nvm_eeprom_via_internal.h" // VIA_EEPROM_CONFIG_END, where the dynamic keymap starts
 
-#    define KEYMAP_SHAPE_ADDR ((uint32_t*)(DYNAMIC_KEYMAP_EEPROM_MAX_ADDR + 1)) // the 4 bytes config.h keeps from VIA's macros
+#    define KEYMAP_SHAPE_ADDR ((uint32_t*)(TOTAL_EEPROM_BYTE_COUNT - 4)) // the last 4 bytes, kept from VIA by config.h
 #    define KEYMAP_SHAPE ((uint32_t)(VIA_EEPROM_CONFIG_END) << 20 | (uint32_t)DYNAMIC_KEYMAP_LAYER_COUNT << 16 | (MATRIX_ROWS * MATRIX_COLS) << 8 | (QMK_KEYCODES_VERSION_BCD & 0xFF))
 
 void via_init_kb(void) {
     uint8_t magic0, magic1, magic2;
 
     nvm_via_read_magic(&magic0, &magic1, &magic2);
-    via_eeprom_set_valid(eeprom_read_dword(KEYMAP_SHAPE_ADDR) == KEYMAP_SHAPE && magic0 != 0xFF);
+    bool valid = eeprom_read_dword(KEYMAP_SHAPE_ADDR) == KEYMAP_SHAPE && magic0 != 0xFF;
+    via_eeprom_set_valid(valid);
+    if (!valid) {
+        clear_config();
+    }
+}
+
+// A blank EEPROM, or QK_CLEAR_EEPROM.
+void eeconfig_init_user(void) {
+    eeconfig_update_user(0);
+    clear_config();
 }
 
 // After VIA and eeconfig have reset whatever they were going to.
 void keyboard_post_init_user(void) {
     eeprom_update_dword(KEYMAP_SHAPE_ADDR, KEYMAP_SHAPE);
+    load_config();
 }
-
-#    include "keymap_introspection.h"
 
 #    ifdef __AVR__
 #        include <avr/boot.h>
@@ -615,6 +582,54 @@ void process_record_live(uint16_t keycode, keyrecord_t* record) {
 
 bool via_command_kb(uint8_t* data, uint8_t length) {
     switch (data[0]) {
+        // VIA's own keymap writes, left to VIA: the combos take their keycodes
+        // from the base layer, so they are rebuilt after.
+        case id_dynamic_keymap_set_keycode:
+        case id_dynamic_keymap_set_buffer:
+            combos_stale = true;
+            return false;
+
+        // A reset keymap is a blank one, and takes the rest of the layout with it.
+        case id_dynamic_keymap_reset:
+            clear_config();
+            load_config();
+            return false;
+
+        case id_config_info:
+            data[1]  = CONFIG_VERSION;
+            data[2]  = sizeof(config_t) & 0xFF;
+            data[3]  = sizeof(config_t) >> 8;
+            data[4]  = CONFIG_COMBOS;
+            data[5]  = CONFIG_COMBO_KEYS;
+            data[6]  = CONFIG_SHIFTS;
+            data[7]  = CONFIG_ALTS;
+            data[8]  = CONFIG_NAME_SIZE;
+            data[9]  = config_valid;
+            data[10] = DYNAMIC_KEYMAP_LAYER_COUNT;
+            data[11] = CONFIG_KEYS;
+            break;
+
+        case id_config_read:
+        case id_config_write: {
+            uint16_t offset = (data[1] << 8) | data[2];
+            uint8_t  size   = data[3] < 28 ? data[3] : 28;
+
+            if (offset > sizeof(config_t)) {
+                offset = sizeof(config_t);
+            }
+            if (size > sizeof(config_t) - offset) {
+                size = sizeof(config_t) - offset;
+            }
+            data[3] = size;
+            if (data[0] == id_config_write) {
+                eeprom_update_block(&data[4], CONFIG_EEPROM + offset, size);
+                load_config();
+            } else {
+                eeprom_read_block(&data[4], CONFIG_EEPROM + offset, size);
+            }
+            break;
+        }
+
         case id_live_get_state: {
             uint32_t layers = layer_state;
             uint16_t now    = timer_read();
@@ -666,21 +681,6 @@ bool via_command_kb(uint8_t* data, uint8_t length) {
             break;
         }
 
-        // keymap.c's own keycodes, laid out as id_dynamic_keymap_get_buffer
-        // reads the EEPROM's (big-endian, layer by row by column), so the host
-        // can tell a remap made in the app from a change to keymap.c.
-        case id_live_get_keymap_c: {
-            uint16_t offset = (data[1] << 8) | data[2];
-            uint8_t  size   = data[3] < 28 ? data[3] : 28;
-
-            for (uint8_t i = 0; i < size; i++) {
-                uint16_t n    = (offset + i) / 2;
-                uint16_t code = keycode_at_keymap_location_raw(n / (MATRIX_ROWS * MATRIX_COLS), (n / MATRIX_COLS) % MATRIX_ROWS, n % MATRIX_COLS);
-                data[4 + i]   = (offset + i) & 1 ? code & 0xFF : code >> 8;
-            }
-            break;
-        }
-
 #    ifdef __AVR__
         // Flash bytes by LPM from the application section, which the boot
         // lock bits may refuse for the bootloader's own pages (reads 0xFF then).
@@ -720,9 +720,3 @@ bool via_command_kb(uint8_t* data, uint8_t length) {
     raw_hid_send(data, length);
     return true;
 }
-
-#else
-
-void process_record_live(uint16_t keycode, keyrecord_t* record) {}
-
-#endif // VIA_ENABLE

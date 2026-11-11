@@ -58,25 +58,31 @@ bool process_custom_shift_keys(uint16_t keycode, keyrecord_t *record) {
         return true;
       }
 
-      // Search for a custom shift key whose keycode is `keycode`.
-      for (int i = 0; i < NUM_CUSTOM_SHIFT_KEYS; ++i) {
-        if (keycode == custom_shift_keys[i].keycode) {
-          registered_keycode = custom_shift_keys[i].shifted_keycode;
-          if (IS_QK_MODS(registered_keycode) &&  // Should keycode be shifted?
-              (QK_MODS_GET_MODS(registered_keycode) & MOD_LSFT) != 0) {
-            register_code16(registered_keycode);  // If so, press it directly.
-          } else {
-            // Otherwise cancel shift mods, press the key, and restore mods.
-            del_weak_mods(MOD_MASK_SHIFT);
+      // A tapped tap-hold key shifts as its tap keycode would.
+      uint16_t tap = keycode;
+      if (IS_QK_MOD_TAP(keycode)) {
+        tap = QK_MOD_TAP_GET_TAP_KEYCODE(keycode);
+      } else if (IS_QK_LAYER_TAP(keycode)) {
+        tap = QK_LAYER_TAP_GET_TAP_KEYCODE(keycode);
+      }
+
+      const uint16_t shifted = get_custom_shift_keycode(tap);
+      if (shifted != KC_NO) {
+        registered_keycode = shifted;
+        if (IS_QK_MODS(registered_keycode) &&  // Should keycode be shifted?
+            (QK_MODS_GET_MODS(registered_keycode) & MOD_LSFT) != 0) {
+          register_code16(registered_keycode);  // If so, press it directly.
+        } else {
+          // Otherwise cancel shift mods, press the key, and restore mods.
+          del_weak_mods(MOD_MASK_SHIFT);
 #ifndef NO_ACTION_ONESHOT
-            del_oneshot_mods(MOD_MASK_SHIFT);
+          del_oneshot_mods(MOD_MASK_SHIFT);
 #endif  // NO_ACTION_ONESHOT
-            unregister_mods(MOD_MASK_SHIFT);
-            register_code16(registered_keycode);
-            set_mods(saved_mods);
-          }
-          return false;
+          unregister_mods(MOD_MASK_SHIFT);
+          register_code16(registered_keycode);
+          set_mods(saved_mods);
         }
+        return false;
       }
     }
   }

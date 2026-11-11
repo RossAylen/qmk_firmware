@@ -37,3 +37,5 @@ SRC += features/achordion.c
 # Custom Shift Keys
 OPT_DEFS += -DCUSTOM_SHIFT_KEYS_ENABLE
 SRC += features/custom_shift_keys.c
+# combo_count() and combo_get() for the combos keymap.c builds
+SRC += combos.c

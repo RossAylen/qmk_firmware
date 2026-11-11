@@ -73,10 +73,12 @@ typedef struct {
   uint16_t shifted_keycode;
 } custom_shift_key_t;
 
-/** Table of custom shift keys. */
-extern const custom_shift_key_t custom_shift_keys[];
-/** Number of entries in the `custom_shift_keys` table. */
-extern uint8_t NUM_CUSTOM_SHIFT_KEYS;
+/**
+ * What `keycode` sends with Shift instead, or KC_NO for what it always sends.
+ * For a tap-hold key it is given the tap keycode. The keymap defines it, here
+ * from a table it reads from EEPROM.
+ */
+uint16_t get_custom_shift_keycode(uint16_t keycode);
 
 /**
  * Handler function for custom shift keys.
