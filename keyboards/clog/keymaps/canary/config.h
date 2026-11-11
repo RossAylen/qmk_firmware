@@ -10,6 +10,9 @@
 #define PERMISSIVE_HOLD
 #define QUICK_TAP_TERM_PER_KEY
 
+// BASE, SYM, NAV, NUM and the modifier layers CTRL, SHIFT, ALT and GUI.
+#define DYNAMIC_KEYMAP_LAYER_COUNT 8
+
 // Combos from the base layer.
 #define COMBO_ONLY_FROM_LAYER 0
 // The default is 50

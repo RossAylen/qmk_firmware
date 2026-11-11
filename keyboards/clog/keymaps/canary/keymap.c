@@ -18,6 +18,11 @@ enum layers {
     SYM,
     NAV,
     NUM,
+    // Modifier layers: each holds its modifier down while it is on (layer_mods).
+    CTRL,
+    SHIFT,
+    ALT,
+    GUI,
 };
 
 enum custom_keycodes {
@@ -42,19 +47,19 @@ enum custom_keycodes {
 
 // Left hand home row
 #define HOME_C LT(SYM, KC_C)
-#define HOME_R LALT_T(KC_R)
-#define HOME_S LSFT_T(KC_S)
-#define HOME_T LCTL_T(KC_T)
+#define HOME_R LT(ALT, KC_R)
+#define HOME_S LT(SHIFT, KC_S)
+#define HOME_T LT(CTRL, KC_T)
 
 // Right hand home row
-#define HOME_N RCTL_T(KC_N)
-#define HOME_E RSFT_T(KC_E)
-#define HOME_I LALT_T(KC_I) // I3 only reads left alt
+#define HOME_N LT(CTRL, KC_N)
+#define HOME_E LT(SHIFT, KC_E)
+#define HOME_I LT(ALT, KC_I)
 #define HOME_A LT(SYM, KC_A)
 
 // Pinky's lower gui's
-#define PNKY_Q LGUI_T(KC_Q)
-#define PNKY_DOT LGUI_T(KC_DOT)
+#define PNKY_Q LT(GUI, KC_Q)
+#define PNKY_DOT LT(GUI, KC_DOT)
 
 // Thumb keys (left/right and inner/outer)
 #define THMB_LI KC_SPC
@@ -101,9 +106,110 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
 
                                    XXXXXXX,  _______,       _______, _______
     ),
+
+    // The modifier layers start with every key falling through to the layer
+    // below, so with the modifier held it sends that key with it.
+
+    [CTRL] = LAYOUT_split_3x5_2(
+        _______, _______, _______, _______, _______,      _______, _______, _______, _______, _______,
+        _______, _______, _______, _______, _______,      _______, _______, _______, _______, _______,
+        _______, _______, _______, _______, _______,      _______, _______, _______, _______, _______,
+
+                                   _______, _______,      _______, _______
+    ),
+
+    [SHIFT] = LAYOUT_split_3x5_2(
+        _______, _______, _______, _______, _______,      _______, _______, _______, _______, _______,
+        _______, _______, _______, _______, _______,      _______, _______, _______, _______, _______,
+        _______, _______, _______, _______, _______,      _______, _______, _______, _______, _______,
+
+                                   _______, _______,      _______, _______
+    ),
+
+    [ALT] = LAYOUT_split_3x5_2(
+        _______, _______, _______, _______, _______,      _______, _______, _______, _______, _______,
+        _______, _______, _______, _______, _______,      _______, _______, _______, _______, _______,
+        _______, _______, _______, _______, _______,      _______, _______, _______, _______, _______,
+
+                                   _______, _______,      _______, _______
+    ),
+
+    [GUI] = LAYOUT_split_3x5_2(
+        _______, _______, _______, _______, _______,      _______, _______, _______, _______, _______,
+        _______, _______, _______, _______, _______,      _______, _______, _______, _______, _______,
+        _______, _______, _______, _______, _______,      _______, _______, _______, _______, _______,
+
+                                   _______, _______,      _______, _______
+    ),
 };
 
 // clang-format on
+
+///////////////////////////////////////////////////////////////////////////////
+// Modifier layers
+///////////////////////////////////////////////////////////////////////////////
+
+// CTRL, SHIFT, ALT and GUI are layers like SYM, held from the home row, and
+// each holds its modifier down while it is on. A key left transparent on one
+// falls through to the layer below and goes with the modifier: hold T and
+// press O for Ctrl+O, or NAV's left arrow for Ctrl+Left. A key changed on one
+// sends just what it is changed to, as a key on SYM does.
+uint8_t const layer_mods[] = {
+    [CTRL]  = MOD_BIT(KC_LCTL),
+    [SHIFT] = MOD_BIT(KC_LSFT),
+    [ALT]   = MOD_BIT(KC_LALT), // I3 only reads left alt
+    [GUI]   = MOD_BIT(KC_LGUI),
+};
+
+static uint8_t      layer_mods_on;           // what the modifier layers have added to get_mods()
+static matrix_row_t own_keys[MATRIX_ROWS]; // keys down that a modifier layer changed
+
+static uint8_t mods_of_layer(uint8_t layer) {
+    return layer < ARRAY_SIZE(layer_mods) ? layer_mods[layer] : 0;
+}
+
+// Hold down the modifiers of the layers on in `state`, and none while a key
+// changed on one of them is down.
+static void update_layer_mods(layer_state_t state) {
+    uint8_t want = 0;
+    bool    own  = false;
+
+    for (uint8_t row = 0; row < MATRIX_ROWS; row++) {
+        own |= own_keys[row] != 0;
+    }
+    for (uint8_t layer = 0; layer < ARRAY_SIZE(layer_mods) && !own; layer++) {
+        if (state & ((layer_state_t)1 << layer)) {
+            want |= layer_mods[layer];
+        }
+    }
+    if (want != layer_mods_on) {
+        del_mods(layer_mods_on & ~want);
+        add_mods(want & ~layer_mods_on);
+        layer_mods_on = want;
+        send_keyboard_report();
+    }
+}
+
+static void track_own_keys(keyrecord_t* record) {
+    keypos_t key = record->event.key;
+
+    if (!IS_KEYEVENT(record->event) || key.row >= MATRIX_ROWS || key.col >= MATRIX_COLS) {
+        return;
+    }
+    matrix_row_t bit = (matrix_row_t)1 << key.col;
+    if (record->event.pressed) {
+        if (!mods_of_layer(layer_switch_get_layer(key))) {
+            return;
+        }
+        own_keys[key.row] |= bit;
+    } else {
+        if (!(own_keys[key.row] & bit)) {
+            return;
+        }
+        own_keys[key.row] &= ~bit;
+    }
+    update_layer_mods(layer_state);
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 // Custom shift keys (https://getreuer.info/posts/keyboards/custom-shift-keys)
@@ -194,8 +300,9 @@ bool achordion_chord(uint16_t tap_hold_keycode, keyrecord_t* tap_hold_record, ui
     return achordion_opposite_hands(tap_hold_record, other_record);
 }
 
-// No modifier reaches the computer until the next key settles the hold, as
-// with SYM. Ctrl or Shift for the mouse are on NAV, held for as long as they're held.
+// A mod-tap key, should one be made in the app, sends no modifier until the
+// next key settles the hold, as the modifier layers don't. Ctrl or Shift for
+// the mouse are on NAV, held for as long as they're held.
 bool achordion_eager_mod(uint8_t mod) {
     return false;
 }
@@ -213,11 +320,6 @@ uint16_t achordion_timeout(uint16_t tap_hold_keycode) {
 }
 
 uint16_t achordion_streak_chord_timeout(uint16_t tap_hold_keycode, uint16_t next_keycode) {
-    // Disable streak detection on LT keys.
-    if (IS_QK_LAYER_TAP(tap_hold_keycode)) {
-        return 0;
-    }
-
     // Exceptions so that certain hotkeys don't get blocked as streaks.
     switch (tap_hold_keycode) {
         case HOME_N:
@@ -227,11 +329,19 @@ uint16_t achordion_streak_chord_timeout(uint16_t tap_hold_keycode, uint16_t next
             break;
     }
 
-    // Otherwise, tap_hold_keycode is a mod-tap key.
-    const uint8_t mod = mod_config(QK_MOD_TAP_GET_MODS(tap_hold_keycode));
+    // The modifiers the key holds: its modifier layer's, or a mod-tap key's own
+    // (5-bit, whose low nibble is the left hand's get_mods() bits for either hand).
+    uint8_t mods = 0;
+    if (IS_QK_LAYER_TAP(tap_hold_keycode)) {
+        mods = mods_of_layer(QK_LAYER_TAP_GET_LAYER(tap_hold_keycode));
+    } else if (IS_QK_MOD_TAP(tap_hold_keycode)) {
+        mods = mod_config(QK_MOD_TAP_GET_MODS(tap_hold_keycode)) & 0x0F;
+    }
 
-    if ((mod & MOD_LSFT) != 0) {
-        return 100; // A short streak timeout for Shift mod-tap keys.
+    if (mods == 0) {
+        return 0; // No streak detection for SYM.
+    } else if ((mods & MOD_MASK_SHIFT) != 0) {
+        return 100; // A short streak timeout for Shift.
     } else {
         return 220; // A longer timeout otherwise.
     }
@@ -319,6 +429,7 @@ bool process_record_user(uint16_t keycode, keyrecord_t* record) {
     if (!process_achordion(keycode, record)) {
         return false;
     }
+    track_own_keys(record);
     process_record_live(keycode, record);
     if (!process_custom_shift_keys(keycode, record)) {
         return false;
@@ -387,6 +498,7 @@ layer_state_t layer_state_set_user(layer_state_t state) {
         unregister_code(KC_LALT);
         alt_tab_active = false;
     }
+    update_layer_mods(state);
     return state;
 }
 
@@ -422,9 +534,11 @@ enum live_command_ids {
  * keymaps[] whenever the build date changes, so via_init_kb() marks it valid
  * for this build first, if what's there was stored in the same place and
  * shape. A QMK update that moves VIA's EEPROM, a new layer count or renumbered
- * keycodes changes the shape, and VIA resets as it would have. VIA's own reset
- * command, or a reset cut short, leaves its magic at 0xFF, and that still
- * resets too.
+ * keycodes changes the shape, and then via_init_kb() marks it invalid: VIA's
+ * magic is only the build's day, so a build of another shape on the same day
+ * would otherwise keep it, and read a new layer out of the old macro space.
+ * VIA's own reset command, or a reset cut short, leaves its magic at 0xFF, and
+ * that still resets too.
  */
 #    include "eeprom.h"
 #    include "nvm_via.h"
@@ -438,9 +552,7 @@ void via_init_kb(void) {
     uint8_t magic0, magic1, magic2;
 
     nvm_via_read_magic(&magic0, &magic1, &magic2);
-    if (eeprom_read_dword(KEYMAP_SHAPE_ADDR) == KEYMAP_SHAPE && magic0 != 0xFF) {
-        via_eeprom_set_valid(true);
-    }
+    via_eeprom_set_valid(eeprom_read_dword(KEYMAP_SHAPE_ADDR) == KEYMAP_SHAPE && magic0 != 0xFF);
 }
 
 // After VIA and eeconfig have reset whatever they were going to.
